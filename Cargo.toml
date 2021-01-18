@@ -1,0 +1,9 @@
+[package]
+name = "splinterpol"
+version = "0.1.0"
+authors = ["Bachmann, Rafael <rafael.bachmann.93@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+optimath = { git = "https://github.com/barafael/optimath", branch = "master" }
+vecmat = "0.6.0"
