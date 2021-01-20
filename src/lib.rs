@@ -1,6 +1,10 @@
 #![cfg_attr(not(test), no_std)]
 
-use vecmat::{prelude::*, Matrix, Vector};
+use vecmat::{
+    prelude::*,
+    vector::{self, Vector16},
+    Matrix, Vector,
+};
 
 const NUM_ELEMENTS: usize = 16;
 
@@ -8,11 +12,23 @@ pub fn splinterpol(xs: &[f32], ys: &[f32]) -> Matrix<f32, 15, 2> {
     let mut diagonal = [0f32; NUM_ELEMENTS - 2];
     calc_diagonal(&xs, &mut diagonal);
 
-    let a: Matrix<f32, 14, 14> = calc_a(&xs, &diagonal);
+    let a: Matrix<f32, 14, 14> = calc_matrix_a(&xs, &diagonal);
 
     let r: Vector<f32, 14> = calc_r(&xs, &ys);
 
-    let c = solve_system(&a, &r);
+    let c: Vector<f32, 14> = solve_system(&a, &r);
+    let c: Vector<f32, 16> = {
+        let mut vector: Vector<f32, 16> = Default::default();
+        for (i, v) in c.iter().enumerate() {
+            vector[i + 1] = *v;
+        }
+        vector
+    };
+
+    let mut a: Vector<f32, 15> = Default::default();
+    a.iter_mut().enumerate().for_each(|(i, val)| {
+        *val = ys[i];
+    });
 
     Default::default()
 }
@@ -42,7 +58,7 @@ fn calc_diagonal(xs: &[f32], result: &mut [f32]) {
     result.copy_from_slice(&diagonal);
 }
 
-fn calc_a(xs: &[f32], diagonal: &[f32]) -> Matrix<f32, 14, 14> {
+fn calc_matrix_a(xs: &[f32], diagonal: &[f32]) -> Matrix<f32, 14, 14> {
     assert_eq!(14, diagonal.len());
     let mut a: Matrix<f32, 14, 14> = Default::default();
     for i in 1..14 {
@@ -63,6 +79,16 @@ fn calc_r(xs: &[f32], ys: &[f32]) -> Vector<f32, 14> {
         r[i] = 3f32 * (div1 - div2);
     }
     r
+}
+
+fn calc_b(xs: &[f32], ys: &[f32], cs: &Vector<f32, 16>) -> Vector<f32, 15> {
+    let mut b: Vector<f32, 15> = Default::default();
+    for i in 0..15 {
+        let div_1 = (ys[i + 1] - ys[i + 0]) / (h(i + 0, &xs));
+        let div_2 = (2f32 * cs[i + 0] + cs[i + 1]) / 3f32;
+        b[i] = div_1 - div_2 * h(i + 0, &xs);
+    }
+    b
 }
 
 #[cfg(test)]
@@ -168,6 +194,42 @@ mod tests {
     }
 
     #[test]
+    fn calc_b_test() {
+        let xs = [
+            0f32, 1f32, 3f32, 6f32, 8f32, 9f32, 10f32, 12f32, 13f32, 14f32, 16f32, 17f32, 18f32,
+            19f32, 20f32, 21f32,
+        ];
+
+        let ys = [
+            0f32, 1f32, -2f32, 4f32, 1f32, -1f32, 0f32, 0f32, 1f32, 2f32, 4f32, 5f32, 4f32, 3f32,
+            2f32, 0f32,
+        ];
+        let cs: Vector<f32, 16> = Vector::from_array([
+            0f32, -1.8847, 1.9041, -1.5906, -0.15336, 2.6013, -1.2517, 0.95437, -0.22289,
+            -0.062811, 0.29988, -1.6737, 0.39473, 0.094739, -0.77368, 0f32,
+        ]);
+        let b = calc_b(&xs, &ys, &cs);
+        let expected = Vector::from_array([
+            1.6282333,
+            -0.25646675,
+            -0.21759987,
+            0.72303987,
+            -2.76486,
+            -0.31696665,
+            1.0326867,
+            0.43804997,
+            1.1695304,
+            0.883828,
+            1.35798,
+            -0.015776694,
+            -1.294733,
+            -0.805266,
+            -1.4842134,
+        ]);
+        assert_eq!(b, expected);
+    }
+
+    #[test]
     fn solve_system_test() {
         let a = Matrix::from([[1f32, 2f32], [3f32, 4f32]]);
         let b = Vector::from([1f32, 2f32]);
@@ -191,7 +253,7 @@ mod tests {
         let mut diag = [0f32; 14];
         calc_diagonal(&xs, &mut diag);
 
-        let a = calc_a(&xs, &diag);
+        let a = calc_matrix_a(&xs, &diag);
         let expected: [[f32; 14]; 14] = [
             [
                 3.0f32, 1.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
