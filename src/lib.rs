@@ -1,10 +1,6 @@
 #![cfg_attr(not(test), no_std)]
 
-use vecmat::{
-    prelude::*,
-    vector::{self, Vector16},
-    Matrix, Vector,
-};
+use vecmat::{prelude::*, Matrix, Vector};
 
 const NUM_ELEMENTS: usize = 16;
 
@@ -84,9 +80,9 @@ fn calc_r(xs: &[f32], ys: &[f32]) -> Vector<f32, 14> {
 fn calc_b(xs: &[f32], ys: &[f32], cs: &Vector<f32, 16>) -> Vector<f32, 15> {
     let mut b: Vector<f32, 15> = Default::default();
     for i in 0..15 {
-        let div_1 = (ys[i + 1] - ys[i + 0]) / (h(i + 0, &xs));
-        let div_2 = (2f32 * cs[i + 0] + cs[i + 1]) / 3f32;
-        b[i] = div_1 - div_2 * h(i + 0, &xs);
+        let div_1 = (ys[i + 1] - ys[i]) / (h(i, &xs));
+        let div_2 = (2f32 * cs[i] + cs[i + 1]) / 3f32;
+        b[i] = div_1 - div_2 * h(i, &xs);
     }
     b
 }
@@ -114,6 +110,82 @@ mod tests {
         let expected: Matrix<f32, 2, 4> =
             Matrix::from([[1.0, 2.0, 3.0, 4.0], [2.0, 4.0, 6.0, 8.0]]);
         assert_eq!(expected, c);
+    }
+
+    #[test]
+    fn thomas_algorithm_14x14() {
+        let mut main = [
+            3.0f32, 4.0f32, 5.0f32, 4.0f32, 3.0f32, 4.0f32, 4.0f32, 4.0f32, 4.0f32, 5.0f32, 4.0f32,
+            3.0f32, 4.0f32, 4.0f32,
+        ];
+        let upper = [
+            1.0f32, 1.0f32, 1.5f32, 0.5f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.5f32, 0.5f32,
+            1.0f32, 1.0f32,
+        ];
+        let lower = [
+            1.0f32, 1.0f32, 1.5f32, 0.5f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.5f32, 0.5f32,
+            1.0f32, 1.0f32,
+        ];
+
+        let mut r: Vector<f32, 14> = Vector::from_array([
+            3f32, 0f32, 1f32, 14f32, -12f32, -3f32, -9f32, 0f32, -3f32, 7f32, 2f32, -3f32, 3f32,
+            -3f32,
+        ]);
+
+        for i in 1..14 {
+            let mc = upper[i - 1] / main[i - 1];
+            main[i] = main[i] - mc * lower[i - 1];
+            r[i] = r[i] - mc * r[i - 1];
+        }
+        let mut x = main.clone();
+        x[13] = r[13] / main[13];
+
+        for i in (0..=12).rev() {
+            x[i] = (r[i] - lower[i] * x[i + 1]) / main[i];
+        }
+
+        let expected = [
+            0.98287845,
+            0.051364593,
+            -1.1883368,
+            4.593546,
+            -5.1833534,
+            1.2532874,
+            -2.829796,
+            1.0658972,
+            -1.4337928,
+            1.669274,
+            0.05828173,
+            -1.4740759,
+            1.3930869,
+            -1.0982717,
+        ];
+        assert_eq!(expected, x);
+    }
+
+    #[test]
+    fn thomas_algorithm_4x4() {
+        let a: Vector<f32, 3> = Vector::from_array([3f32, 1f32, 3f32]);
+        let mut b: Vector<f32, 4> = Vector::from_array([10f32, 10f32, 7f32, 4f32]);
+        let c: Vector<f32, 3> = Vector::from_array([2f32, 4f32, 5f32]);
+
+        let mut d: Vector<f32, 4> = Vector::from_array([3f32, 4f32, 5f32, 6f32]);
+
+        for i in 1..4 {
+            let mc = a[i - 1] / b[i - 1];
+            b[i] = b[i] - mc * c[i - 1];
+            d[i] = d[i] - mc * d[i - 1];
+        }
+        let mut x = b.clone();
+        x[3] = d[3] / b[3];
+
+        for i in (0..=2).rev() {
+            x[i] = (d[i] - c[i] * x[i + 1]) / b[i];
+        }
+
+        let expected: Vector<f32, 4> =
+            Vector::from_array([0.14877588, 0.7561206, -1.0018834, 2.2514126]);
+        assert_eq!(expected, x);
     }
 
     #[test]
