@@ -2,6 +2,8 @@
 
 use vecmat::{prelude::*, Matrix, Vector};
 
+mod plot;
+
 const NUM_ELEMENTS: usize = 16;
 
 pub fn splinterpol(xs: &[f32], ys: &[f32]) -> Matrix<f32, 15, 2> {
