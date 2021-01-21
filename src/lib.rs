@@ -3,10 +3,11 @@
 use vecmat::{prelude::*, Matrix, Vector};
 
 mod plot;
+mod thomas_algorithm;
 
 const NUM_ELEMENTS: usize = 16;
 
-pub fn splinterpol(xs: &[f32], ys: &[f32]) -> Matrix<f32, 15, 2> {
+pub fn splinterpol(xs: &[f32], ys: &[f32]) -> Matrix<f32, 15, 4> {
     let mut diagonal = [0f32; NUM_ELEMENTS - 2];
     calc_diagonal(&xs, &mut diagonal);
 
@@ -14,7 +15,9 @@ pub fn splinterpol(xs: &[f32], ys: &[f32]) -> Matrix<f32, 15, 2> {
 
     let r: Vector<f32, 14> = calc_r(&xs, &ys);
 
-    let c: Vector<f32, 14> = solve_system(&a, &r);
+    let inv = a.inv();
+    let c: Vector<f32, 14> = inv.dot(r);
+
     let c: Vector<f32, 16> = {
         let mut vector: Vector<f32, 16> = Default::default();
         for (i, v) in c.iter().enumerate() {
@@ -28,12 +31,15 @@ pub fn splinterpol(xs: &[f32], ys: &[f32]) -> Matrix<f32, 15, 2> {
         *val = ys[i];
     });
 
-    Default::default()
-}
+    let b = calc_b(&xs, &ys, &c);
 
-fn solve_system(a: &Matrix<f32, 14, 14>, b: &Vector<f32, 14>) -> Vector<f32, 14> {
-    let inv = a.inv();
-    inv.dot(*b)
+    let d = calc_d(&xs, &c);
+
+    let mut coefficients: Matrix<f32, 15, 4> = Default::default();
+    for i in 0..15 {
+        coefficients[(i as usize, 0_usize)] = a[i];
+    }
+    coefficients
 }
 
 fn cubic_spline(a: f32, b: f32, c: f32, d: f32, vec: &mut [f32], start: f32, step_size: f32) {
@@ -89,9 +95,31 @@ fn calc_b(xs: &[f32], ys: &[f32], cs: &Vector<f32, 16>) -> Vector<f32, 15> {
     b
 }
 
+fn calc_d(xs: &[f32], cs: &Vector<f32, 16>) -> Vector<f32, 15> {
+    let mut d: Vector<f32, 15> = Default::default();
+    for i in 0..15 {
+        d[i] = (cs[i + 1] - cs[i]) / (3f32 * h(i, &xs));
+    }
+    d
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    //#[test]
+    fn test_splinterpol() {
+        let xs = [
+            0f32, 1f32, 3f32, 6f32, 8f32, 9f32, 10f32, 12f32, 13f32, 14f32, 16f32, 17f32, 18f32,
+            19f32, 20f32, 21f32,
+        ];
+        let ys = [
+            0f32, 1f32, -2f32, 4f32, 1f32, -1f32, 0f32, 0f32, 1f32, 2f32, 4f32, 5f32, 4f32, 3f32,
+            2f32, 0f32,
+        ];
+        let coeffs = splinterpol(&xs, &ys);
+        dbg!(coeffs);
+    }
 
     #[test]
     fn mat_mul() {
@@ -112,82 +140,6 @@ mod tests {
         let expected: Matrix<f32, 2, 4> =
             Matrix::from([[1.0, 2.0, 3.0, 4.0], [2.0, 4.0, 6.0, 8.0]]);
         assert_eq!(expected, c);
-    }
-
-    #[test]
-    fn thomas_algorithm_14x14() {
-        let mut main = [
-            3.0f32, 4.0f32, 5.0f32, 4.0f32, 3.0f32, 4.0f32, 4.0f32, 4.0f32, 4.0f32, 5.0f32, 4.0f32,
-            3.0f32, 4.0f32, 4.0f32,
-        ];
-        let upper = [
-            1.0f32, 1.0f32, 1.5f32, 0.5f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.5f32, 0.5f32,
-            1.0f32, 1.0f32,
-        ];
-        let lower = [
-            1.0f32, 1.0f32, 1.5f32, 0.5f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.0f32, 1.5f32, 0.5f32,
-            1.0f32, 1.0f32,
-        ];
-
-        let mut r: Vector<f32, 14> = Vector::from_array([
-            3f32, 0f32, 1f32, 14f32, -12f32, -3f32, -9f32, 0f32, -3f32, 7f32, 2f32, -3f32, 3f32,
-            -3f32,
-        ]);
-
-        for i in 1..14 {
-            let mc = upper[i - 1] / main[i - 1];
-            main[i] = main[i] - mc * lower[i - 1];
-            r[i] = r[i] - mc * r[i - 1];
-        }
-        let mut x = main.clone();
-        x[13] = r[13] / main[13];
-
-        for i in (0..=12).rev() {
-            x[i] = (r[i] - lower[i] * x[i + 1]) / main[i];
-        }
-
-        let expected = [
-            0.98287845,
-            0.051364593,
-            -1.1883368,
-            4.593546,
-            -5.1833534,
-            1.2532874,
-            -2.829796,
-            1.0658972,
-            -1.4337928,
-            1.669274,
-            0.05828173,
-            -1.4740759,
-            1.3930869,
-            -1.0982717,
-        ];
-        assert_eq!(expected, x);
-    }
-
-    #[test]
-    fn thomas_algorithm_4x4() {
-        let a: Vector<f32, 3> = Vector::from_array([3f32, 1f32, 3f32]);
-        let mut b: Vector<f32, 4> = Vector::from_array([10f32, 10f32, 7f32, 4f32]);
-        let c: Vector<f32, 3> = Vector::from_array([2f32, 4f32, 5f32]);
-
-        let mut d: Vector<f32, 4> = Vector::from_array([3f32, 4f32, 5f32, 6f32]);
-
-        for i in 1..4 {
-            let mc = a[i - 1] / b[i - 1];
-            b[i] = b[i] - mc * c[i - 1];
-            d[i] = d[i] - mc * d[i - 1];
-        }
-        let mut x = b.clone();
-        x[3] = d[3] / b[3];
-
-        for i in (0..=2).rev() {
-            x[i] = (d[i] - c[i] * x[i + 1]) / b[i];
-        }
-
-        let expected: Vector<f32, 4> =
-            Vector::from_array([0.14877588, 0.7561206, -1.0018834, 2.2514126]);
-        assert_eq!(expected, x);
     }
 
     #[test]
@@ -300,7 +252,39 @@ mod tests {
             -0.805266,
             -1.4842134,
         ]);
-        assert_eq!(b, expected);
+        assert_eq!(expected, b);
+    }
+
+    #[test]
+    fn calc_d_test() {
+        let xs = [
+            0f32, 1f32, 3f32, 6f32, 8f32, 9f32, 10f32, 12f32, 13f32, 14f32, 16f32, 17f32, 18f32,
+            19f32, 20f32, 21f32,
+        ];
+
+        let cs: Vector<f32, 16> = Vector::from_array([
+            0f32, -1.8847, 1.9041, -1.5906, -0.15336, 2.6013, -1.2517, 0.95437, -0.22289,
+            -0.062811, 0.29988, -1.6737, 0.39473, 0.094739, -0.77368, 0f32,
+        ]);
+        let d = calc_d(&xs, &cs);
+        let expected = Vector::from_array([
+            -0.6282333,
+            0.6314666,
+            -0.3883,
+            0.23954,
+            0.91822,
+            -1.2843333,
+            0.3676783,
+            -0.39242002,
+            0.05335967,
+            0.060448498,
+            -0.65786,
+            0.68947667,
+            -0.09999701,
+            -0.289473,
+            0.25789332,
+        ]);
+        assert_eq!(expected, d);
     }
 
     #[test]
