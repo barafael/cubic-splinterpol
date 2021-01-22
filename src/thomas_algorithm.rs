@@ -1,5 +1,11 @@
 // possibly optimize for symmetrical matrix
-pub fn thomas_algorithm(lower: &[f32], main: &mut [f32], upper: &[f32], r: &mut [f32], x: &mut [f32]) -> Result<(), ()> {
+pub fn thomas_algorithm(
+    lower: &[f32],
+    main: &mut [f32],
+    upper: &[f32],
+    r: &mut [f32],
+    x: &mut [f32],
+) -> Result<(), ()> {
     let n = main.len();
     if n < 4 {
         return Err(());
@@ -24,7 +30,7 @@ pub fn thomas_algorithm(lower: &[f32], main: &mut [f32], upper: &[f32], r: &mut 
     x.copy_from_slice(main);
     x[n - 1] = r[n - 1] / main[n - 1];
 
-    for i in (0..=(n-2)).rev() {
+    for i in (0..=(n - 2)).rev() {
         x[i] = (r[i] - upper[i] * x[i + 1]) / main[i];
     }
     Ok(())
@@ -50,7 +56,8 @@ mod tests {
         ];
 
         let mut r = [
-            3f32, 0f32, 1f32, 14f32, -12f32, -3f32, -9f32, 0f32, -3f32, 7f32, 2f32, -3f32, 3f32, -3f32,
+            3f32, 0f32, 1f32, 14f32, -12f32, -3f32, -9f32, 0f32, -3f32, 7f32, 2f32, -3f32, 3f32,
+            -3f32,
         ];
 
         let mut x = [0f32; 14];
@@ -78,7 +85,7 @@ mod tests {
     #[test]
     fn thomas_algorithm_4x4_test() {
         let lower = [3f32, 1f32, 3f32];
-        let mut main  = [10f32, 10f32, 7f32, 4f32];
+        let mut main = [10f32, 10f32, 7f32, 4f32];
         let upper = [2f32, 4f32, 5f32];
 
         let mut r = [3f32, 4f32, 5f32, 6f32];
@@ -95,10 +102,10 @@ mod tests {
         let lower = [3f32, 1f32, 1f32];
         let mut main = [1f32, 2f32, 2f32, 1f32];
         let upper = [2f32, 1f32, 3f32];
-        let mut d  = [1f32, 2f32, 3f32, 4f32];
+        let mut d = [1f32, 2f32, 3f32, 4f32];
         let mut x = [0f32; 4];
         thomas_algorithm(&lower, &mut main, &upper, &mut d, &mut x).unwrap();
-        let expected = [ -5.666666, 3.333333, 12.333332, -8.333332, ];
+        let expected = [-5.666666, 3.333333, 12.333332, -8.333332];
         assert_eq!(expected, x);
     }
 }

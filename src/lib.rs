@@ -1,45 +1,60 @@
 #![cfg_attr(not(test), no_std)]
 
-use vecmat::{prelude::*, Matrix, Vector};
-
 mod plot;
 mod thomas_algorithm;
 
 const NUM_ELEMENTS: usize = 16;
 
-pub fn splinterpol(xs: &[f32], ys: &[f32]) -> Matrix<f32, 15, 4> {
+pub fn splinterpol(
+    xs: &[f32],
+    ys: &[f32],
+    coefficients: &mut [(f32, f32, f32, f32)],
+) -> Result<(), ()> {
     let mut diagonal = [0f32; NUM_ELEMENTS - 2];
     calc_diagonal(&xs, &mut diagonal);
 
-    let a: Matrix<f32, 14, 14> = calc_matrix_a(&xs, &diagonal);
+    let mut r = [0f32; 14];
+    calc_r(&xs, &ys, &mut r).unwrap();
 
-    let r: Vector<f32, 14> = calc_r(&xs, &ys);
+    let mut sub_diagonal = [0f32; 13];
+    calc_subdiagonal(&xs, &mut sub_diagonal).unwrap();
 
-    let inv = a.inv();
-    let c: Vector<f32, 14> = inv.dot(r);
-
-    let c: Vector<f32, 16> = {
-        let mut vector: Vector<f32, 16> = Default::default();
-        for (i, v) in c.iter().enumerate() {
-            vector[i + 1] = *v;
-        }
-        vector
+    let c = {
+        let mut c = [0f32; 16];
+        let mut c_body = &mut c[1..15];
+        thomas_algorithm::thomas_algorithm(
+            &sub_diagonal,
+            &mut diagonal,
+            &sub_diagonal,
+            &mut r,
+            &mut c_body,
+        )
+        .unwrap();
+        c
     };
 
-    let mut a: Vector<f32, 15> = Default::default();
-    a.iter_mut().enumerate().for_each(|(i, val)| {
-        *val = ys[i];
-    });
+    let mut b = [0f32; 15];
+    calc_b(&xs, &ys, &c, &mut b).unwrap();
 
-    let b = calc_b(&xs, &ys, &c);
+    let mut d = [0f32; 15];
+    calc_d(&xs, &c, &mut d).unwrap();
 
-    let d = calc_d(&xs, &c);
-
-    let mut coefficients: Matrix<f32, 15, 4> = Default::default();
-    for i in 0..15 {
-        coefficients[(i as usize, 0_usize)] = a[i];
+    for i in 0..14 {
+        coefficients[i].0 = ys[i];
+        coefficients[i].1 = b[i];
+        coefficients[i].2 = c[i];
+        coefficients[i].3 = d[i];
     }
-    coefficients
+    Ok(())
+}
+
+fn calc_subdiagonal(vals: &[f32], sub: &mut [f32]) -> Result<(), ()> {
+    assert_eq!(vals.len(), 3 + sub.len());
+    let n = vals.len();
+    for i in 0..(n - 3) {
+        sub[i] = vals[i + 2] - vals[i + 1];
+    }
+    Ok(())
 }
 
 fn cubic_spline(a: f32, b: f32, c: f32, d: f32, vec: &mut [f32], start: f32, step_size: f32) {
@@ -62,84 +77,99 @@ fn calc_diagonal(xs: &[f32], result: &mut [f32]) {
     result.copy_from_slice(&diagonal);
 }
 
-fn calc_matrix_a(xs: &[f32], diagonal: &[f32]) -> Matrix<f32, 14, 14> {
-    assert_eq!(14, diagonal.len());
-    let mut a: Matrix<f32, 14, 14> = Default::default();
-    for i in 1..14 {
-        let hi = h(i, &xs);
-        a[(i - 1, i)] = hi;
-        a[(i, i - 1)] = hi;
-        a[(i - 1, i - 1)] = diagonal[i - 1];
+fn calc_r(xs: &[f32], ys: &[f32], r: &mut [f32]) -> Result<(), ()> {
+    if r.len() != 14 {
+        return Err(());
     }
-    a[(13, 13)] = diagonal[13];
-    a
-}
-
-fn calc_r(xs: &[f32], ys: &[f32]) -> Vector<f32, 14> {
-    let mut r: Vector<f32, 14> = Default::default();
+    if xs.len() != 16 {
+        return Err(());
+    }
+    if ys.len() != 16 {
+        return Err(());
+    }
     for i in 0..14 {
         let div1 = (ys[i + 2] - ys[i + 1]) / (h(i + 1, &xs));
         let div2 = (ys[i + 1] - ys[i]) / (h(i, &xs));
         r[i] = 3f32 * (div1 - div2);
     }
-    r
+    Ok(())
 }
 
-fn calc_b(xs: &[f32], ys: &[f32], cs: &Vector<f32, 16>) -> Vector<f32, 15> {
-    let mut b: Vector<f32, 15> = Default::default();
+fn calc_b(xs: &[f32], ys: &[f32], cs: &[f32], b: &mut [f32]) -> Result<(), ()> {
+    if cs.len() != 16 {
+        return Err(());
+    }
+    if b.len() != 15 {
+        return Err(());
+    }
     for i in 0..15 {
         let div_1 = (ys[i + 1] - ys[i]) / (h(i, &xs));
         let div_2 = (2f32 * cs[i] + cs[i + 1]) / 3f32;
         b[i] = div_1 - div_2 * h(i, &xs);
     }
-    b
+    Ok(())
 }
 
-fn calc_d(xs: &[f32], cs: &Vector<f32, 16>) -> Vector<f32, 15> {
-    let mut d: Vector<f32, 15> = Default::default();
+fn calc_d(xs: &[f32], cs: &[f32], d: &mut [f32]) -> Result<(), ()> {
+    if cs.len() != 16 {
+        return Err(());
+    }
+    if d.len() != 15 {
+        return Err(());
+    }
     for i in 0..15 {
         d[i] = (cs[i + 1] - cs[i]) / (3f32 * h(i, &xs));
     }
-    d
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    //#[test]
+    #[test]
     fn test_splinterpol() {
         let xs = [
-            0f32, 1f32, 3f32, 6f32, 8f32, 9f32, 10f32, 12f32, 13f32, 14f32, 16f32, 17f32, 18f32,
-            19f32, 20f32, 21f32,
+            0.5f32, 1f32, 2f32, 3f32, 4.5f32, 5f32, 6f32, 7f32, 8f32, 9f32, 10f32, 11.5f32, 12f32,
+            13f32, 14f32, 15f32,
         ];
         let ys = [
-            0f32, 1f32, -2f32, 4f32, 1f32, -1f32, 0f32, 0f32, 1f32, 2f32, 4f32, 5f32, 4f32, 3f32,
-            2f32, 0f32,
+            0f32, 0f32, 1f32, 2f32, 4f32, 7f32, 9f32, 10f32, 8f32, 6f32, 3f32, 2f32, 2f32, 1f32,
+            1f32, 0f32,
         ];
-        let coeffs = splinterpol(&xs, &ys);
-        dbg!(coeffs);
+        let mut coeffs = [(0f32, 0f32, 0f32, 0f32); 14];
+        splinterpol(&xs, &ys, &mut coeffs).unwrap();
+        let expected: [(f32, f32, f32, f32); 14] = [
+            (0.0, -0.16381307, 0.0, 0.6552523),
+            (0.0, 0.32762617, 0.98287845, -0.31050465),
+            (1.0, 1.3618692, 0.051364563, -0.41323376),
+            (2.0, 0.22489715, -1.1883367, 1.2848629),
+            (4.0, 5.3327103, 4.593546, -6.517933),
+            (7.0, 5.0378065, -5.1833534, 2.145547),
+            (9.0, 1.1077404, 1.2532874, -1.3610278),
+            (10.0, -0.46876848, -2.829796, 1.2985644),
+            (8.0, -2.2326672, 1.0658972, -0.83323),
+            (6.0, -2.6005628, -1.4337928, 1.0343556),
+            (3.0, -2.3650815, 1.669274, -0.35799825),
+            (2.0, 0.22625208, 0.05828173, -1.0215718),
+            (2.0, -0.48164505, -1.4740759, 0.9557209),
+            (1.0, -0.56263405, 1.3930869, -0.8304529),
+        ];
+        assert_eq!(expected, coeffs);
     }
 
     #[test]
-    fn mat_mul() {
-        let c: Matrix<f32, 2, 4> = {
-            let mut a: Matrix<f32, 2, 1> = Default::default();
-            let mut b: Matrix<f32, 1, 4> = Default::default();
-
-            a[(0, 0)] = 1f32;
-            a[(1, 0)] = 2f32;
-
-            b[(0, 0)] = 1f32;
-            b[(0, 1)] = 2f32;
-            b[(0, 2)] = 3f32;
-            b[(0, 3)] = 4f32;
-
-            a.dot(b)
-        };
-        let expected: Matrix<f32, 2, 4> =
-            Matrix::from([[1.0, 2.0, 3.0, 4.0], [2.0, 4.0, 6.0, 8.0]]);
-        assert_eq!(expected, c);
+    fn test_calc_subdiagonal() {
+        let xs = [
+            0.5f32, 1f32, 2f32, 3f32, 4.5f32, 5f32, 6f32, 7f32, 8f32, 9f32, 10f32, 11.5f32, 12f32,
+            13f32, 14f32, 15f32,
+        ];
+        let mut sub = [0f32; 13];
+        calc_subdiagonal(&xs, &mut sub).unwrap();
+        let expected = [
+            1.0, 1.0, 1.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 0.5, 1.0, 1.0,
+        ];
+        assert_eq!(expected, sub);
     }
 
     #[test]
@@ -209,7 +239,8 @@ mod tests {
             1f32, 0f32,
         ];
 
-        let r = calc_r(&xs, &ys);
+        let mut r = [0f32; 14];
+        calc_r(&xs, &ys, &mut r).unwrap();
         let expected = [
             3f32, 0f32, 1f32, 14f32, -12f32, -3f32, -9f32, 0f32, -3f32, 7f32, 2f32, -3f32, 3f32,
             -3f32,
@@ -230,12 +261,13 @@ mod tests {
             0f32, 1f32, -2f32, 4f32, 1f32, -1f32, 0f32, 0f32, 1f32, 2f32, 4f32, 5f32, 4f32, 3f32,
             2f32, 0f32,
         ];
-        let cs: Vector<f32, 16> = Vector::from_array([
+        let cs = [
             0f32, -1.8847, 1.9041, -1.5906, -0.15336, 2.6013, -1.2517, 0.95437, -0.22289,
             -0.062811, 0.29988, -1.6737, 0.39473, 0.094739, -0.77368, 0f32,
-        ]);
-        let b = calc_b(&xs, &ys, &cs);
-        let expected = Vector::from_array([
+        ];
+        let mut b = [0f32; 15];
+        calc_b(&xs, &ys, &cs, &mut b).unwrap();
+        let expected = [
             1.6282333,
             -0.25646675,
             -0.21759987,
@@ -251,7 +283,7 @@ mod tests {
             -1.294733,
             -0.805266,
             -1.4842134,
-        ]);
+        ];
         assert_eq!(expected, b);
     }
 
@@ -262,12 +294,13 @@ mod tests {
             19f32, 20f32, 21f32,
         ];
 
-        let cs: Vector<f32, 16> = Vector::from_array([
+        let cs = [
             0f32, -1.8847, 1.9041, -1.5906, -0.15336, 2.6013, -1.2517, 0.95437, -0.22289,
             -0.062811, 0.29988, -1.6737, 0.39473, 0.094739, -0.77368, 0f32,
-        ]);
-        let d = calc_d(&xs, &cs);
-        let expected = Vector::from_array([
+        ];
+        let mut d = [0f32; 15];
+        calc_d(&xs, &cs, &mut d).unwrap();
+        let expected = [
             -0.6282333,
             0.6314666,
             -0.3883,
@@ -283,97 +316,7 @@ mod tests {
             -0.09999701,
             -0.289473,
             0.25789332,
-        ]);
-        assert_eq!(expected, d);
-    }
-
-    #[test]
-    fn solve_system_test() {
-        let a = Matrix::from([[1f32, 2f32], [3f32, 4f32]]);
-        let b = Vector::from([1f32, 2f32]);
-        let inv = a.inv();
-
-        let c = inv.dot(b);
-        assert_eq!(b, a.dot(c))
-    }
-
-    #[test]
-    fn calc_a_test() {
-        let mut xs = [0f32; 16];
-        xs.iter_mut().enumerate().for_each(|(i, v)| {
-            *v = i as f32;
-        });
-
-        xs[0] = 0.5f32;
-        xs[4] = 4.5f32;
-        xs[11] = 11.5f32;
-
-        let mut diag = [0f32; 14];
-        calc_diagonal(&xs, &mut diag);
-
-        let a = calc_matrix_a(&xs, &diag);
-        let expected: [[f32; 14]; 14] = [
-            [
-                3.0f32, 1.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
-                0.0f32, 0.0f32, 0.0f32, 0.0f32,
-            ],
-            [
-                1.0f32, 4.0f32, 1.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
-                0.0f32, 0.0f32, 0.0f32, 0.0f32,
-            ],
-            [
-                0.0f32, 1.0f32, 5.0f32, 1.5f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
-                0.0f32, 0.0f32, 0.0f32, 0.0f32,
-            ],
-            [
-                0.0f32, 0.0f32, 1.5f32, 4.0f32, 0.5f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
-                0.0f32, 0.0f32, 0.0f32, 0.0f32,
-            ],
-            [
-                0.0f32, 0.0f32, 0.0f32, 0.5f32, 3.0f32, 1.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
-                0.0f32, 0.0f32, 0.0f32, 0.0f32,
-            ],
-            [
-                0.0f32, 0.0f32, 0.0f32, 0.0f32, 1.0f32, 4.0f32, 1.0f32, 0.0f32, 0.0f32, 0.0f32,
-                0.0f32, 0.0f32, 0.0f32, 0.0f32,
-            ],
-            [
-                0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 1.0f32, 4.0f32, 1.0f32, 0.0f32, 0.0f32,
-                0.0f32, 0.0f32, 0.0f32, 0.0f32,
-            ],
-            [
-                0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 1.0f32, 4.0f32, 1.0f32, 0.0f32,
-                0.0f32, 0.0f32, 0.0f32, 0.0f32,
-            ],
-            [
-                0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 1.0f32, 4.0f32, 1.0f32,
-                0.0f32, 0.0f32, 0.0f32, 0.0f32,
-            ],
-            [
-                0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 1.0f32, 5.0f32,
-                1.5f32, 0.0f32, 0.0f32, 0.0f32,
-            ],
-            [
-                0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 1.5f32,
-                4.0f32, 0.5f32, 0.0f32, 0.0f32,
-            ],
-            [
-                0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
-                0.5f32, 3.0f32, 1.0f32, 0.0f32,
-            ],
-            [
-                0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
-                0.0f32, 1.0f32, 4.0f32, 1.0f32,
-            ],
-            [
-                0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32, 0.0f32,
-                0.0f32, 0.0f32, 1.0f32, 4.0f32,
-            ],
         ];
-        for i in 0..14 {
-            for j in 0..14 {
-                assert_eq!(expected[i][j], a[(i, j)]);
-            }
-        }
+        assert_eq!(expected, d);
     }
 }

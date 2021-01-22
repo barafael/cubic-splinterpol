@@ -5,5 +5,4 @@ authors = ["Bachmann, Rafael <rafael.bachmann.93@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-vecmat = "0.6.0"
 plotters = "0.3.0"
