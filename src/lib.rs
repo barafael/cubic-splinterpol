@@ -14,32 +14,41 @@ pub fn splinterpol(
     calc_diagonal(&xs, &mut diagonal);
 
     let mut r = [0f32; 14];
-    calc_r(&xs, &ys, &mut r).unwrap();
+    if let Err(()) = calc_r(&xs, &ys, &mut r) {
+        return Err(());
+    }
 
     let mut sub_diagonal = [0f32; 13];
-    calc_subdiagonal(&xs, &mut sub_diagonal).unwrap();
+    if let Err(()) = calc_subdiagonal(&xs, &mut sub_diagonal) {
+        return Err(());
+    }
 
     let c = {
         let mut c = [0f32; 16];
         let mut c_body = &mut c[1..15];
-        thomas_algorithm::thomas_algorithm(
+        if let Err(()) = thomas_algorithm::thomas_algorithm(
             &sub_diagonal,
             &mut diagonal,
             &sub_diagonal,
             &mut r,
             &mut c_body,
-        )
-        .unwrap();
+        ) {
+            return Err(());
+        }
         c
     };
 
     let mut b = [0f32; 15];
-    calc_b(&xs, &ys, &c, &mut b).unwrap();
+    if let Err(()) = calc_b(&xs, &ys, &c, &mut b) {
+        return Err(());
+    }
 
     let mut d = [0f32; 15];
-    calc_d(&xs, &c, &mut d).unwrap();
+    if let Err(()) = calc_d(&xs, &c, &mut d) {
+        return Err(());
+    }
 
-    for i in 0..14 {
+    for i in 0..15 {
         coefficients[i].0 = ys[i];
         coefficients[i].1 = b[i];
         coefficients[i].2 = c[i];
@@ -59,8 +68,9 @@ fn calc_subdiagonal(vals: &[f32], sub: &mut [f32]) -> Result<(), ()> {
 
 fn cubic_spline(a: f32, b: f32, c: f32, d: f32, vec: &mut [f32], start: f32, step_size: f32) {
     for (i, v) in vec.iter_mut().enumerate() {
-        let x = start + i as f32 * step_size;
-        *v = a + b * x + c * (x * x) + d * (x * x * x);
+        let x = i as f32 * step_size;
+        let value = a + b * x + c * (x * x) + d * (x * x * x);
+        *v = value;
     }
 }
 
@@ -111,6 +121,9 @@ fn calc_b(xs: &[f32], ys: &[f32], cs: &[f32], b: &mut [f32]) -> Result<(), ()> {
 }
 
 fn calc_d(xs: &[f32], cs: &[f32], d: &mut [f32]) -> Result<(), ()> {
+    if xs.len() != 16 {
+        return Err(());
+    }
     if cs.len() != 16 {
         return Err(());
     }
@@ -123,23 +136,28 @@ fn calc_d(xs: &[f32], cs: &[f32], d: &mut [f32]) -> Result<(), ()> {
     Ok(())
 }
 
+fn plot_coeffs_into(buffer: &mut [f32], coefficients: &[(f32, f32, f32, f32)], xs: &[f32]) -> Result<(), ()> {
+    let x_range = xs.last().unwrap() - xs.first().unwrap();
+    let step_size = x_range as f64 / buffer.len() as f64;
+    let mut current_index = 0;
+    for i in 0..coefficients.len() {
+        let range = xs[i+1] - xs[i];
+        let ratio = range / x_range;
+        let buffer_ratio = buffer.len() as f32 * ratio;
+        let mut current_slice = &mut buffer[current_index..current_index+buffer_ratio.round() as usize];
+        cubic_spline(coefficients[i].0, coefficients[i].1, coefficients[i].2, coefficients[i].3, &mut current_slice, xs[i], step_size as f32);
+        current_index += buffer_ratio.round() as usize;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_splinterpol() {
-        let xs = [
-            0.5f32, 1f32, 2f32, 3f32, 4.5f32, 5f32, 6f32, 7f32, 8f32, 9f32, 10f32, 11.5f32, 12f32,
-            13f32, 14f32, 15f32,
-        ];
-        let ys = [
-            0f32, 0f32, 1f32, 2f32, 4f32, 7f32, 9f32, 10f32, 8f32, 6f32, 3f32, 2f32, 2f32, 1f32,
-            1f32, 0f32,
-        ];
-        let mut coeffs = [(0f32, 0f32, 0f32, 0f32); 14];
-        splinterpol(&xs, &ys, &mut coeffs).unwrap();
-        let expected: [(f32, f32, f32, f32); 14] = [
+    fn test_plot_coeffs() {
+        let coeffs: [(f32, f32, f32, f32); 15] = [
             (0.0, -0.16381307, 0.0, 0.6552523),
             (0.0, 0.32762617, 0.98287845, -0.31050465),
             (1.0, 1.3618692, 0.051364563, -0.41323376),
@@ -154,8 +172,88 @@ mod tests {
             (2.0, 0.22625208, 0.05828173, -1.0215718),
             (2.0, -0.48164505, -1.4740759, 0.9557209),
             (1.0, -0.56263405, 1.3930869, -0.8304529),
+            (1.0, -0.26781887, -1.0982717, 0.36609057),
+        ];
+        let mut buffer = [0f32; 100];
+        let xs = [
+            0.5f32, 1f32, 2f32, 3f32, 4.5f32, 5f32, 6f32, 7f32, 8f32, 9f32, 10f32, 11.5f32, 12f32,
+            13f32, 14f32, 15f32,
+        ];
+        plot_coeffs_into(&mut buffer, &coeffs, &xs).unwrap();
+        dbg!(buffer);
+    }
+
+    #[test]
+    fn test_splinterpol() {
+        let xs = [
+            0.5f32, 1f32, 2f32, 3f32, 4.5f32, 5f32, 6f32, 7f32, 8f32, 9f32, 10f32, 11.5f32, 12f32,
+            13f32, 14f32, 15f32,
+        ];
+        let ys = [
+            0f32, 0f32, 1f32, 2f32, 4f32, 7f32, 9f32, 10f32, 8f32, 6f32, 3f32, 2f32, 2f32, 1f32,
+            1f32, 0f32,
+        ];
+        let mut coeffs = [(0f32, 0f32, 0f32, 0f32); 15];
+        splinterpol(&xs, &ys, &mut coeffs).unwrap();
+        let expected: [(f32, f32, f32, f32); 15] = [
+            (0.0, -0.16381307, 0.0, 0.6552523),
+            (0.0, 0.32762617, 0.98287845, -0.31050465),
+            (1.0, 1.3618692, 0.051364563, -0.41323376),
+            (2.0, 0.22489715, -1.1883367, 1.2848629),
+            (4.0, 5.3327103, 4.593546, -6.517933),
+            (7.0, 5.0378065, -5.1833534, 2.145547),
+            (9.0, 1.1077404, 1.2532874, -1.3610278),
+            (10.0, -0.46876848, -2.829796, 1.2985644),
+            (8.0, -2.2326672, 1.0658972, -0.83323),
+            (6.0, -2.6005628, -1.4337928, 1.0343556),
+            (3.0, -2.3650815, 1.669274, -0.35799825),
+            (2.0, 0.22625208, 0.05828173, -1.0215718),
+            (2.0, -0.48164505, -1.4740759, 0.9557209),
+            (1.0, -0.56263405, 1.3930869, -0.8304529),
+            (1.0, -0.26781887, -1.0982717, 0.36609057),
         ];
         assert_eq!(expected, coeffs);
+    }
+
+    #[test]
+    fn plot_splinterpol() {
+        use plotters::prelude::*;
+
+        let xs = [
+            0.5f32, 1f32, 2f32, 3f32, 4.5f32, 5f32, 6f32, 7f32, 8f32, 9f32, 10f32, 11.5f32, 12f32,
+            13f32, 14f32, 15f32,
+        ];
+
+        let coeffs: [(f32, f32, f32, f32); 15] = [
+            (0.0, -0.16381307, 0.0, 0.6552523),
+            (0.0, 0.32762617, 0.98287845, -0.31050465),
+            (1.0, 1.3618692, 0.051364563, -0.41323376),
+            (2.0, 0.22489715, -1.1883367, 1.2848629),
+            (4.0, 5.3327103, 4.593546, -6.517933),
+            (7.0, 5.0378065, -5.1833534, 2.145547),
+            (9.0, 1.1077404, 1.2532874, -1.3610278),
+            (10.0, -0.46876848, -2.829796, 1.2985644),
+            (8.0, -2.2326672, 1.0658972, -0.83323),
+            (6.0, -2.6005628, -1.4337928, 1.0343556),
+            (3.0, -2.3650815, 1.669274, -0.35799825),
+            (2.0, 0.22625208, 0.05828173, -1.0215718),
+            (2.0, -0.48164505, -1.4740759, 0.9557209),
+            (1.0, -0.56263405, 1.3930869, -0.8304529),
+            (1.0, -0.26781887, -1.0982717, 0.36609057),
+        ];
+
+        for i in 0..14 {
+            let a = coeffs[i].0;
+            let b = coeffs[i].1;
+            let c = coeffs[i].2;
+            let d = coeffs[i].3;
+
+            let mut vec = [0f32; 10];
+            let step_size = (xs[i] - xs[i + 1]).abs() / 10f32;
+            dbg!(step_size);
+            cubic_spline(a, b, c, d, &mut vec, xs[i], step_size);
+            dbg!(vec);
+        }
     }
 
     #[test]
@@ -176,7 +274,7 @@ mod tests {
     fn do_cubic_spline() {
         let mut xs = [0f32; 64];
         cubic_spline(4.0, 2.0, 2.0, 1.5, &mut xs, 0.0, 0.05);
-        let expected = vec![
+        let expected = [
             4.0, 4.1051874, 4.2215, 4.350063, 4.492, 4.6484375, 4.8205, 5.009312, 5.2160006,
             5.4416876, 5.6875, 5.9545627, 6.244, 6.556938, 6.8945003, 7.2578125, 7.6480002,
             8.066188, 8.5135, 8.991062, 9.5, 10.041438, 10.6165, 11.226313, 11.872001, 12.5546875,
@@ -252,22 +350,21 @@ mod tests {
 
     #[test]
     fn calc_b_test() {
-        let xs = [
-            0f32, 1f32, 3f32, 6f32, 8f32, 9f32, 10f32, 12f32, 13f32, 14f32, 16f32, 17f32, 18f32,
-            19f32, 20f32, 21f32,
+        let xs: [f32; 16] = [
+            0.0, 1.0, 3.0, 6.0, 8.0, 9.0, 10.0, 12.0, 13.0, 14.0, 16.0, 17.0, 18.0, 19.0, 20.0,
+            21.0,
         ];
 
-        let ys = [
-            0f32, 1f32, -2f32, 4f32, 1f32, -1f32, 0f32, 0f32, 1f32, 2f32, 4f32, 5f32, 4f32, 3f32,
-            2f32, 0f32,
+        let ys: [f32; 16] = [
+            0.0, 1.0, -2.0, 4.0, 1.0, -1.0, 0.0, 0.0, 1.0, 2.0, 4.0, 5.0, 4.0, 3.0, 2.0, 0.0,
         ];
-        let cs = [
-            0f32, -1.8847, 1.9041, -1.5906, -0.15336, 2.6013, -1.2517, 0.95437, -0.22289,
-            -0.062811, 0.29988, -1.6737, 0.39473, 0.094739, -0.77368, 0f32,
+        let cs: [f32; 16] = [
+            0.0, -1.8847, 1.9041, -1.5906, -0.15336, 2.6013, -1.2517, 0.95437, -0.22289, -0.062811,
+            0.29988, -1.6737, 0.39473, 0.094739, -0.77368, 0.0,
         ];
         let mut b = [0f32; 15];
         calc_b(&xs, &ys, &cs, &mut b).unwrap();
-        let expected = [
+        let expected: [f32; 15] = [
             1.6282333,
             -0.25646675,
             -0.21759987,
@@ -288,10 +385,10 @@ mod tests {
     }
 
     #[test]
-    fn calc_d_test() {
-        let xs = [
-            0f32, 1f32, 3f32, 6f32, 8f32, 9f32, 10f32, 12f32, 13f32, 14f32, 16f32, 17f32, 18f32,
-            19f32, 20f32, 21f32,
+    fn calc_d_test_1() {
+        let xs: [f32; 16] = [
+            0.0, 1.0, 3.0, 6.0, 8.0, 9.0, 10.0, 12.0, 13.0, 14.0, 16.0, 17.0, 18.0, 19.0, 20.0,
+            21.0,
         ];
 
         let cs = [
@@ -300,7 +397,7 @@ mod tests {
         ];
         let mut d = [0f32; 15];
         calc_d(&xs, &cs, &mut d).unwrap();
-        let expected = [
+        let expected: [f32; 15] = [
             -0.6282333,
             0.6314666,
             -0.3883,
@@ -316,6 +413,39 @@ mod tests {
             -0.09999701,
             -0.289473,
             0.25789332,
+        ];
+        assert_eq!(expected, d);
+    }
+
+    #[test]
+    fn calc_d_test_2() {
+        let xs: [f32; 16] = [
+            0.5, 1.0, 2.0, 3.0, 4.5, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.5, 12.0, 13.0, 14.0, 15.0,
+        ];
+
+        let cs = [
+            0.0, 0.98288, 0.051365, -1.1883, 4.5935, -5.1834, 1.2533, -2.8298, 1.0659, -1.4338,
+            1.6693, 0.058282, -1.4741, 1.3931, -1.0983, 0.0,
+        ];
+
+        let mut d = [0f32; 15];
+        calc_d(&xs, &cs, &mut d).unwrap();
+        let expected: [f32; 15] = [
+            0.65525335,
+            -0.310505,
+            -0.4132217,
+            1.2848445,
+            -6.5179334,
+            2.1455667,
+            -1.3610333,
+            1.2985667,
+            -0.83323336,
+            1.0343666,
+            -0.35800397,
+            -1.021588,
+            0.9557333,
+            -0.8304667,
+            0.36609998,
         ];
         assert_eq!(expected, d);
     }
