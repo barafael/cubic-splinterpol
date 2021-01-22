@@ -26,10 +26,9 @@ pub fn splinterpol(
     let c = {
         let mut c = [0f32; 16];
         let mut c_body = &mut c[1..15];
-        if let Err(()) = thomas_algorithm::thomas_algorithm(
+        if let Err(()) = thomas_algorithm::thomas_algorithm_symmetric(
             &sub_diagonal,
             &mut diagonal,
-            &sub_diagonal,
             &mut r,
             &mut c_body,
         ) {
@@ -66,7 +65,7 @@ fn calc_subdiagonal(vals: &[f32], sub: &mut [f32]) -> Result<(), ()> {
     Ok(())
 }
 
-fn cubic_spline(a: f32, b: f32, c: f32, d: f32, vec: &mut [f32], start: f32, step_size: f32) {
+fn cubic_spline(a: f32, b: f32, c: f32, d: f32, vec: &mut [f32], step_size: f32) {
     for (i, v) in vec.iter_mut().enumerate() {
         let x = i as f32 * step_size;
         let value = a + b * x + c * (x * x) + d * (x * x * x);
@@ -136,17 +135,36 @@ fn calc_d(xs: &[f32], cs: &[f32], d: &mut [f32]) -> Result<(), ()> {
     Ok(())
 }
 
-fn plot_coeffs_into(buffer: &mut [f32], coefficients: &[(f32, f32, f32, f32)], xs: &[f32]) -> Result<(), ()> {
+pub fn plot_coeffs_into(
+    buffer: &mut [f32],
+    coefficients: &[(f32, f32, f32, f32)],
+    xs: &[f32],
+) -> Result<(), ()> {
     let x_range = xs.last().unwrap() - xs.first().unwrap();
     let step_size = x_range as f64 / buffer.len() as f64;
     let mut current_index = 0;
     for i in 0..coefficients.len() {
-        let range = xs[i+1] - xs[i];
+        let range = xs[i + 1] - xs[i];
         let ratio = range / x_range;
-        let buffer_ratio = buffer.len() as f32 * ratio;
-        let mut current_slice = &mut buffer[current_index..current_index+buffer_ratio.round() as usize];
-        cubic_spline(coefficients[i].0, coefficients[i].1, coefficients[i].2, coefficients[i].3, &mut current_slice, xs[i], step_size as f32);
-        current_index += buffer_ratio.round() as usize;
+        // f32::round not available in no_std
+        let buffer_ratio = {
+            let r = buffer.len() as f32 * ratio;
+            if r - ((r as u32) as f32) < 0.5 {
+                r as u32
+            } else {
+                r as u32 + 1
+            }
+        };
+        let mut current_slice = &mut buffer[current_index..current_index + buffer_ratio as usize];
+        cubic_spline(
+            coefficients[i].0,
+            coefficients[i].1,
+            coefficients[i].2,
+            coefficients[i].3,
+            &mut current_slice,
+            step_size as f32,
+        );
+        current_index += buffer_ratio as usize;
     }
     Ok(())
 }
@@ -259,7 +277,7 @@ mod tests {
 
         chart
             .draw_series(LineSeries::new(
-                buffer.iter().enumerate().map(|(i, v)| {(i as f32, *v)}),
+                buffer.iter().enumerate().map(|(i, v)| (i as f32, *v)),
                 &RED,
             ))
             .unwrap();
@@ -289,7 +307,7 @@ mod tests {
     #[test]
     fn do_cubic_spline() {
         let mut xs = [0f32; 64];
-        cubic_spline(4.0, 2.0, 2.0, 1.5, &mut xs, 0.0, 0.05);
+        cubic_spline(4.0, 2.0, 2.0, 1.5, &mut xs, 0.05);
         let expected = [
             4.0, 4.1051874, 4.2215, 4.350063, 4.492, 4.6484375, 4.8205, 5.009312, 5.2160006,
             5.4416876, 5.6875, 5.9545627, 6.244, 6.556938, 6.8945003, 7.2578125, 7.6480002,
