@@ -242,18 +242,34 @@ mod tests {
             (1.0, -0.26781887, -1.0982717, 0.36609057),
         ];
 
-        for i in 0..14 {
-            let a = coeffs[i].0;
-            let b = coeffs[i].1;
-            let c = coeffs[i].2;
-            let d = coeffs[i].3;
+        let mut buffer = [0f32; 100];
+        plot_coeffs_into(&mut buffer, &coeffs, &xs).unwrap();
 
-            let mut vec = [0f32; 10];
-            let step_size = (xs[i] - xs[i + 1]).abs() / 10f32;
-            dbg!(step_size);
-            cubic_spline(a, b, c, d, &mut vec, xs[i], step_size);
-            dbg!(vec);
-        }
+        let root = BitMapBackend::new("0.png", (640, 480)).into_drawing_area();
+        root.fill(&WHITE).unwrap();
+        let mut chart = ChartBuilder::on(&root)
+            .caption("spline", ("sans-serif", 50).into_font())
+            .margin(5)
+            .x_label_area_size(30)
+            .y_label_area_size(30)
+            .build_cartesian_2d(0f32..100f32, 0.0f32..15f32)
+            .unwrap();
+
+        chart.configure_mesh().draw().unwrap();
+
+        chart
+            .draw_series(LineSeries::new(
+                buffer.iter().enumerate().map(|(i, v)| {(i as f32, *v)}),
+                &RED,
+            ))
+            .unwrap();
+
+        chart
+            .configure_series_labels()
+            .background_style(&WHITE.mix(0.8))
+            .border_style(&BLACK)
+            .draw()
+            .unwrap()
     }
 
     #[test]
