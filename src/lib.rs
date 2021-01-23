@@ -375,13 +375,14 @@ mod tests {
 
     #[test]
     fn diagonal_test() {
-        let mut xs = [0f32; 16];
+        const N: usize = 16;
+        let mut xs = [0f32; N];
         xs.iter_mut().enumerate().for_each(|(i, v)| {
             *v = i as f32;
         });
         xs[4] = 4.5f32;
-        let mut diagonal = [0f32; 14];
-        calc_diagonal::<16>(&xs, &mut diagonal).unwrap();
+        let mut diagonal = [0f32; N - 2];
+        calc_diagonal::<N>(&xs, &mut diagonal).unwrap();
         let expected = [
             4f32, 4f32, 5f32, 4f32, 3f32, 4f32, 4f32, 4f32, 4f32, 4f32, 4f32, 4f32, 4f32, 4f32,
         ];
@@ -390,7 +391,8 @@ mod tests {
 
     #[test]
     fn diagonal_test_2() {
-        let mut xs = [0f32; 16];
+        const N: usize = 16;
+        let mut xs = [0f32; N];
         xs.iter_mut().enumerate().for_each(|(i, v)| {
             *v = i as f32;
         });
@@ -399,8 +401,8 @@ mod tests {
         xs[4] = 4.5f32;
         xs[11] = 11.5f32;
 
-        let mut diagonal = [0f32; 14];
-        calc_diagonal::<16>(&xs, &mut diagonal).unwrap();
+        let mut diagonal = [0f32; N - 2];
+        calc_diagonal::<N>(&xs, &mut diagonal).unwrap();
         let expected = [
             3f32, 4f32, 5f32, 4f32, 3f32, 4f32, 4f32, 4f32, 4f32, 5f32, 4f32, 3f32, 4f32, 4f32,
         ];
@@ -409,7 +411,8 @@ mod tests {
 
     #[test]
     fn calc_r_test() {
-        let mut xs = [0f32; 16];
+        const N: usize = 16;
+        let mut xs = [0f32; N];
         xs.iter_mut().enumerate().for_each(|(i, v)| {
             *v = i as f32;
         });
@@ -423,8 +426,8 @@ mod tests {
             1f32, 0f32,
         ];
 
-        let mut r = [0f32; 14];
-        calc_r::<16>(&xs, &ys, &mut r).unwrap();
+        let mut r = [0f32; N - 2];
+        calc_r::<N>(&xs, &ys, &mut r).unwrap();
         let expected = [
             3f32, 0f32, 1f32, 14f32, -12f32, -3f32, -9f32, 0f32, -3f32, 7f32, 2f32, -3f32, 3f32,
             -3f32,
@@ -436,21 +439,22 @@ mod tests {
 
     #[test]
     fn calc_b_test() {
-        let xs: [f32; 16] = [
+        const N: usize = 16;
+        let xs: [f32; N] = [
             0.0, 1.0, 3.0, 6.0, 8.0, 9.0, 10.0, 12.0, 13.0, 14.0, 16.0, 17.0, 18.0, 19.0, 20.0,
             21.0,
         ];
 
-        let ys: [f32; 16] = [
+        let ys: [f32; N] = [
             0.0, 1.0, -2.0, 4.0, 1.0, -1.0, 0.0, 0.0, 1.0, 2.0, 4.0, 5.0, 4.0, 3.0, 2.0, 0.0,
         ];
-        let cs: [f32; 16] = [
+        let cs: [f32; N] = [
             0.0, -1.8847, 1.9041, -1.5906, -0.15336, 2.6013, -1.2517, 0.95437, -0.22289, -0.062811,
             0.29988, -1.6737, 0.39473, 0.094739, -0.77368, 0.0,
         ];
-        let mut b = [0f32; 15];
-        calc_b::<16>(&xs, &ys, &cs, &mut b).unwrap();
-        let expected: [f32; 15] = [
+        let mut b = [0f32; N - 1];
+        calc_b::<N>(&xs, &ys, &cs, &mut b).unwrap();
+        let expected: [f32; N - 1] = [
             1.6282333,
             -0.25646675,
             -0.21759987,
@@ -472,7 +476,8 @@ mod tests {
 
     #[test]
     fn calc_d_test_1() {
-        let xs: [f32; 16] = [
+        const N: usize = 16;
+        let xs: [f32; N] = [
             0.0, 1.0, 3.0, 6.0, 8.0, 9.0, 10.0, 12.0, 13.0, 14.0, 16.0, 17.0, 18.0, 19.0, 20.0,
             21.0,
         ];
@@ -481,9 +486,9 @@ mod tests {
             0f32, -1.8847, 1.9041, -1.5906, -0.15336, 2.6013, -1.2517, 0.95437, -0.22289,
             -0.062811, 0.29988, -1.6737, 0.39473, 0.094739, -0.77368, 0f32,
         ];
-        let mut d = [0f32; 15];
-        calc_d::<16>(&xs, &cs, &mut d).unwrap();
-        let expected: [f32; 15] = [
+        let mut d = [0f32; N - 1];
+        calc_d::<N>(&xs, &cs, &mut d).unwrap();
+        let expected: [f32; N - 1] = [
             -0.6282333,
             0.6314666,
             -0.3883,
@@ -505,7 +510,8 @@ mod tests {
 
     #[test]
     fn calc_d_test_2() {
-        let xs: [f32; 16] = [
+        const N: usize = 16;
+        let xs: [f32; N] = [
             0.5, 1.0, 2.0, 3.0, 4.5, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.5, 12.0, 13.0, 14.0, 15.0,
         ];
 
@@ -514,9 +520,9 @@ mod tests {
             1.6693, 0.058282, -1.4741, 1.3931, -1.0983, 0.0,
         ];
 
-        let mut d = [0f32; 15];
-        calc_d::<16>(&xs, &cs, &mut d).unwrap();
-        let expected: [f32; 15] = [
+        let mut d = [0f32; N - 1];
+        calc_d::<N>(&xs, &cs, &mut d).unwrap();
+        let expected: [f32; N - 1] = [
             0.65525335,
             -0.310505,
             -0.4132217,
