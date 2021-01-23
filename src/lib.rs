@@ -14,7 +14,8 @@ pub enum Error {
     InvalidSliceLength,
 }
 
-/// Given xs and ys of same length n, calculate the coefficients of n-1 cubic polynomials.
+/// Given xs and ys of same length n, calculate the coefficients of n-1 cubic
+/// polynomials.
 pub fn splinterpol(
     xs: &[f32],
     ys: &[f32],
@@ -91,11 +92,9 @@ fn h(i: usize, vals: &[f32]) -> f32 {
 
 fn calc_diagonal(xs: &[f32], result: &mut [f32]) {
     assert_eq!(16, xs.len());
-    let mut diagonal = [0f32; 14];
     for i in 0..14 {
-        diagonal[i] = 2f32 * (h(i, &xs) + h(i + 1, &xs));
+        result[i] = 2f32 * (h(i, &xs) + h(i + 1, &xs));
     }
-    result.copy_from_slice(&diagonal);
 }
 
 fn calc_r(xs: &[f32], ys: &[f32], r: &mut [f32]) -> Result<(), Error> {
@@ -133,13 +132,13 @@ fn calc_b(xs: &[f32], ys: &[f32], cs: &[f32], b: &mut [f32]) -> Result<(), Error
 
 fn calc_d(xs: &[f32], cs: &[f32], d: &mut [f32]) -> Result<(), Error> {
     if xs.len() != 16 {
-        return Err(Error::InvalidSliceLength)
+        return Err(Error::InvalidSliceLength);
     }
     if cs.len() != 16 {
-        return Err(Error::InvalidSliceLength)
+        return Err(Error::InvalidSliceLength);
     }
     if d.len() != 15 {
-        return Err(Error::InvalidSliceLength)
+        return Err(Error::InvalidSliceLength);
     }
     for i in 0..15 {
         d[i] = (cs[i + 1] - cs[i]) / (3f32 * h(i, &xs));
