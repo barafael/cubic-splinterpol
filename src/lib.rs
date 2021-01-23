@@ -16,27 +16,34 @@ pub enum Error {
 
 /// Given xs and ys of same length n, calculate the coefficients of n-1 cubic
 /// polynomials.
-pub fn splinterpol(
+pub fn splinterpol<const N: usize>(
     xs: &[f32],
     ys: &[f32],
     coefficients: &mut [(f32, f32, f32, f32)],
 ) -> Result<(), Error> {
-    let mut diagonal = [0f32; 14];
-    calc_diagonal(&xs, &mut diagonal);
+    // Array size const expression workaround
+    let mut diagonal = [0f32; N];
+    let mut diagonal = &mut diagonal[0..N - 2];
 
-    let mut r = [0f32; 14];
-    if let Err(e) = calc_r(&xs, &ys, &mut r) {
+    calc_diagonal::<N>(&xs, &mut diagonal).unwrap();
+
+    let mut r = [0f32; N];
+    let mut r = &mut r[0..N - 2];
+
+    if let Err(e) = calc_r::<N>(&xs, &ys, &mut r) {
         return Err(e);
     }
 
-    let mut sub_diagonal = [0f32; 13];
+    let mut sub_diagonal = [0f32; N];
+    let mut sub_diagonal = &mut sub_diagonal[0..N - 3];
+
     if let Err(e) = calc_subdiagonal(&xs, &mut sub_diagonal) {
         return Err(e);
     }
 
     let c = {
-        let mut c = [0f32; 16];
-        let mut c_body = &mut c[1..15];
+        let mut c = [0f32; N];
+        let mut c_body = &mut c[1..N - 1];
         if let Err(e) = thomas_algorithm::thomas_algorithm_symmetric(
             &sub_diagonal,
             &mut diagonal,
@@ -48,17 +55,21 @@ pub fn splinterpol(
         c
     };
 
-    let mut b = [0f32; 15];
-    if let Err(e) = calc_b(&xs, &ys, &c, &mut b) {
+    let mut b = [0f32; N];
+    let mut b = &mut b[0..N - 1];
+
+    if let Err(e) = calc_b::<N>(&xs, &ys, &c, &mut b) {
         return Err(e);
     }
 
-    let mut d = [0f32; 15];
-    if let Err(e) = calc_d(&xs, &c, &mut d) {
+    let mut d = [0f32; N];
+    let mut d = &mut d[0..N - 1];
+
+    if let Err(e) = calc_d::<N>(&xs, &c, &mut d) {
         return Err(e);
     }
 
-    for i in 0..15 {
+    for i in 0..N - 1 {
         coefficients[i].0 = ys[i];
         coefficients[i].1 = b[i];
         coefficients[i].2 = c[i];
@@ -90,24 +101,27 @@ fn h(i: usize, vals: &[f32]) -> f32 {
     vals[i + 1] - vals[i]
 }
 
-fn calc_diagonal(xs: &[f32], result: &mut [f32]) {
-    assert_eq!(16, xs.len());
-    for i in 0..14 {
+fn calc_diagonal<const N: usize>(xs: &[f32], result: &mut [f32]) -> Result<(), Error> {
+    if xs.len() != N {
+        return Err(Error::InvalidSliceLength);
+    }
+    for i in 0..N - 2 {
         result[i] = 2f32 * (h(i, &xs) + h(i + 1, &xs));
     }
+    Ok(())
 }
 
-fn calc_r(xs: &[f32], ys: &[f32], r: &mut [f32]) -> Result<(), Error> {
-    if r.len() != 14 {
+fn calc_r<const N: usize>(xs: &[f32], ys: &[f32], r: &mut [f32]) -> Result<(), Error> {
+    if r.len() != N - 2 {
         return Err(Error::InvalidSliceLength);
     }
-    if xs.len() != 16 {
+    if xs.len() != N {
         return Err(Error::InvalidSliceLength);
     }
-    if ys.len() != 16 {
+    if ys.len() != N {
         return Err(Error::InvalidSliceLength);
     }
-    for i in 0..14 {
+    for i in 0..N - 2 {
         let div1 = (ys[i + 2] - ys[i + 1]) / (h(i + 1, &xs));
         let div2 = (ys[i + 1] - ys[i]) / (h(i, &xs));
         r[i] = 3f32 * (div1 - div2);
@@ -115,14 +129,14 @@ fn calc_r(xs: &[f32], ys: &[f32], r: &mut [f32]) -> Result<(), Error> {
     Ok(())
 }
 
-fn calc_b(xs: &[f32], ys: &[f32], cs: &[f32], b: &mut [f32]) -> Result<(), Error> {
-    if cs.len() != 16 {
+fn calc_b<const N: usize>(xs: &[f32], ys: &[f32], cs: &[f32], b: &mut [f32]) -> Result<(), Error> {
+    if cs.len() != N {
         return Err(Error::InvalidSliceLength);
     }
-    if b.len() != 15 {
+    if b.len() != N - 1 {
         return Err(Error::InvalidSliceLength);
     }
-    for i in 0..15 {
+    for i in 0..N - 1 {
         let div_1 = (ys[i + 1] - ys[i]) / (h(i, &xs));
         let div_2 = (2f32 * cs[i] + cs[i + 1]) / 3f32;
         b[i] = div_1 - div_2 * h(i, &xs);
@@ -130,17 +144,17 @@ fn calc_b(xs: &[f32], ys: &[f32], cs: &[f32], b: &mut [f32]) -> Result<(), Error
     Ok(())
 }
 
-fn calc_d(xs: &[f32], cs: &[f32], d: &mut [f32]) -> Result<(), Error> {
-    if xs.len() != 16 {
+fn calc_d<const N: usize>(xs: &[f32], cs: &[f32], d: &mut [f32]) -> Result<(), Error> {
+    if xs.len() != N {
         return Err(Error::InvalidSliceLength);
     }
-    if cs.len() != 16 {
+    if cs.len() != N {
         return Err(Error::InvalidSliceLength);
     }
-    if d.len() != 15 {
+    if d.len() != N - 1 {
         return Err(Error::InvalidSliceLength);
     }
-    for i in 0..15 {
+    for i in 0..N - 1 {
         d[i] = (cs[i + 1] - cs[i]) / (3f32 * h(i, &xs));
     }
     Ok(())
@@ -167,7 +181,11 @@ pub fn plot_coeffs_into(
                 r as u32 + 1
             }
         };
-        let mut current_slice = &mut buffer[current_index..current_index + buffer_ratio as usize];
+        let mut upper = current_index + buffer_ratio as usize;
+        if upper >= buffer.len() {
+            upper = buffer.len()
+        };
+        let mut current_slice = &mut buffer[current_index..upper];
         cubic_spline(
             coefficients[i].0,
             coefficients[i].1,
@@ -224,7 +242,7 @@ mod tests {
             1f32, 0f32,
         ];
         let mut coeffs = [(0f32, 0f32, 0f32, 0f32); 15];
-        splinterpol(&xs, &ys, &mut coeffs).unwrap();
+        splinterpol::<16>(&xs, &ys, &mut coeffs).unwrap();
         let expected: [(f32, f32, f32, f32); 15] = [
             (0.0, -0.16381307, 0.0, 0.6552523),
             (0.0, 0.32762617, 0.98287845, -0.31050465),
@@ -241,6 +259,28 @@ mod tests {
             (2.0, -0.48164505, -1.4740759, 0.9557209),
             (1.0, -0.56263405, 1.3930869, -0.8304529),
             (1.0, -0.26781887, -1.0982717, 0.36609057),
+        ];
+        assert_eq!(expected, coeffs);
+    }
+
+    #[test]
+    fn test_splinterpol_8x8() {
+        let xs = [0.5f32, 1f32, 2f32, 3f32, 4.5f32, 5f32, 6f32, 7f32];
+        let ys = [0f32, 0f32, 1f32, 2f32, 4f32, 7f32, 9f32, 10f32];
+        let mut coeffs = [(0f32, 0f32, 0f32, 0f32); 7];
+        splinterpol::<8>(&xs, &ys, &mut coeffs).unwrap();
+
+        let mut buffer = [0f32; 1000];
+        plot_coeffs_into(&mut buffer, &coeffs, &xs).unwrap();
+
+        let expected = [
+            (0.0, -0.16399321, 0.0, 0.65597284),
+            (0.0, 0.32798642, 0.98395926, -0.31194568),
+            (1.0, 1.360068, 0.048122242, -0.40819016),
+            (2.0, 0.2317419, -1.1764482, 1.273895),
+            (4.0, 5.301188, 4.5560794, -6.316911),
+            (7.0, 5.119584, -4.9192877, 1.7997031),
+            (9.0, 0.6801188, 0.47982174, -0.15994059),
         ];
         assert_eq!(expected, coeffs);
     }
@@ -341,7 +381,7 @@ mod tests {
         });
         xs[4] = 4.5f32;
         let mut diagonal = [0f32; 14];
-        calc_diagonal(&xs, &mut diagonal);
+        calc_diagonal::<16>(&xs, &mut diagonal).unwrap();
         let expected = [
             4f32, 4f32, 5f32, 4f32, 3f32, 4f32, 4f32, 4f32, 4f32, 4f32, 4f32, 4f32, 4f32, 4f32,
         ];
@@ -360,7 +400,7 @@ mod tests {
         xs[11] = 11.5f32;
 
         let mut diagonal = [0f32; 14];
-        calc_diagonal(&xs, &mut diagonal);
+        calc_diagonal::<16>(&xs, &mut diagonal).unwrap();
         let expected = [
             3f32, 4f32, 5f32, 4f32, 3f32, 4f32, 4f32, 4f32, 4f32, 5f32, 4f32, 3f32, 4f32, 4f32,
         ];
@@ -384,7 +424,7 @@ mod tests {
         ];
 
         let mut r = [0f32; 14];
-        calc_r(&xs, &ys, &mut r).unwrap();
+        calc_r::<16>(&xs, &ys, &mut r).unwrap();
         let expected = [
             3f32, 0f32, 1f32, 14f32, -12f32, -3f32, -9f32, 0f32, -3f32, 7f32, 2f32, -3f32, 3f32,
             -3f32,
@@ -409,7 +449,7 @@ mod tests {
             0.29988, -1.6737, 0.39473, 0.094739, -0.77368, 0.0,
         ];
         let mut b = [0f32; 15];
-        calc_b(&xs, &ys, &cs, &mut b).unwrap();
+        calc_b::<16>(&xs, &ys, &cs, &mut b).unwrap();
         let expected: [f32; 15] = [
             1.6282333,
             -0.25646675,
@@ -442,7 +482,7 @@ mod tests {
             -0.062811, 0.29988, -1.6737, 0.39473, 0.094739, -0.77368, 0f32,
         ];
         let mut d = [0f32; 15];
-        calc_d(&xs, &cs, &mut d).unwrap();
+        calc_d::<16>(&xs, &cs, &mut d).unwrap();
         let expected: [f32; 15] = [
             -0.6282333,
             0.6314666,
@@ -475,7 +515,7 @@ mod tests {
         ];
 
         let mut d = [0f32; 15];
-        calc_d(&xs, &cs, &mut d).unwrap();
+        calc_d::<16>(&xs, &cs, &mut d).unwrap();
         let expected: [f32; 15] = [
             0.65525335,
             -0.310505,
