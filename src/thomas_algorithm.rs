@@ -1,3 +1,10 @@
+#![deny(unsafe_code)]
+#![deny(missing_docs)]
+
+use crate::Error;
+
+/// Solve Ax = r for A being tridiagonal. That is, A must have non-zero values
+/// only on the main diagonal and the upper and lower sub-diagonals.
 #[allow(dead_code)]
 pub fn thomas_algorithm(
     lower: &[f32],
@@ -5,22 +12,22 @@ pub fn thomas_algorithm(
     upper: &[f32],
     r: &mut [f32],
     x: &mut [f32],
-) -> Result<(), ()> {
+) -> Result<(), Error> {
     let n = main.len();
     if n < 4 {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     if lower.len() != n - 1 {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     if upper.len() != n - 1 {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     if r.len() != n {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     if x.len() != n {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     for i in 1..n {
         let mc = lower[i - 1] / main[i - 1];
@@ -35,24 +42,27 @@ pub fn thomas_algorithm(
     Ok(())
 }
 
+/// Solve Ax = r for A being tridiagonal and symmetric. That is, A must have
+/// non-zero values only on the main diagonal and the upper and lower
+/// sub-diagonals, and the values on the sub-diagonals must be equal.
 pub fn thomas_algorithm_symmetric(
     sub_diagonal: &[f32],
     main: &mut [f32],
     r: &mut [f32],
     x: &mut [f32],
-) -> Result<(), ()> {
+) -> Result<(), Error> {
     let n = main.len();
     if n < 4 {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     if sub_diagonal.len() != n - 1 {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     if r.len() != n {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     if x.len() != n {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     for i in 1..n {
         let mc = sub_diagonal[i - 1] / main[i - 1];

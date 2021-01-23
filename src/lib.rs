@@ -1,50 +1,60 @@
+//! A library for using cubic spline interpolation on no_std.
+
+#![deny(unsafe_code)]
+#![deny(missing_docs)]
 #![cfg_attr(not(test), no_std)]
 
-mod plot;
+mod plot_spline;
 mod thomas_algorithm;
 
-const NUM_ELEMENTS: usize = 16;
+/// The possible errors of this crate
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Error {
+    /// Slice of invalid length passed
+    InvalidSliceLength,
+}
 
+/// Given xs and ys of same length n, calculate the coefficients of n-1 cubic polynomials.
 pub fn splinterpol(
     xs: &[f32],
     ys: &[f32],
     coefficients: &mut [(f32, f32, f32, f32)],
-) -> Result<(), ()> {
-    let mut diagonal = [0f32; NUM_ELEMENTS - 2];
+) -> Result<(), Error> {
+    let mut diagonal = [0f32; 14];
     calc_diagonal(&xs, &mut diagonal);
 
     let mut r = [0f32; 14];
-    if let Err(()) = calc_r(&xs, &ys, &mut r) {
-        return Err(());
+    if let Err(e) = calc_r(&xs, &ys, &mut r) {
+        return Err(e);
     }
 
     let mut sub_diagonal = [0f32; 13];
-    if let Err(()) = calc_subdiagonal(&xs, &mut sub_diagonal) {
-        return Err(());
+    if let Err(e) = calc_subdiagonal(&xs, &mut sub_diagonal) {
+        return Err(e);
     }
 
     let c = {
         let mut c = [0f32; 16];
         let mut c_body = &mut c[1..15];
-        if let Err(()) = thomas_algorithm::thomas_algorithm_symmetric(
+        if let Err(e) = thomas_algorithm::thomas_algorithm_symmetric(
             &sub_diagonal,
             &mut diagonal,
             &mut r,
             &mut c_body,
         ) {
-            return Err(());
+            return Err(e);
         }
         c
     };
 
     let mut b = [0f32; 15];
-    if let Err(()) = calc_b(&xs, &ys, &c, &mut b) {
-        return Err(());
+    if let Err(e) = calc_b(&xs, &ys, &c, &mut b) {
+        return Err(e);
     }
 
     let mut d = [0f32; 15];
-    if let Err(()) = calc_d(&xs, &c, &mut d) {
-        return Err(());
+    if let Err(e) = calc_d(&xs, &c, &mut d) {
+        return Err(e);
     }
 
     for i in 0..15 {
@@ -56,8 +66,10 @@ pub fn splinterpol(
     Ok(())
 }
 
-fn calc_subdiagonal(vals: &[f32], sub: &mut [f32]) -> Result<(), ()> {
-    assert_eq!(vals.len(), 3 + sub.len());
+fn calc_subdiagonal(vals: &[f32], sub: &mut [f32]) -> Result<(), Error> {
+    if vals.len() != sub.len() + 3 {
+        return Err(Error::InvalidSliceLength);
+    }
     let n = vals.len();
     for i in 0..(n - 3) {
         sub[i] = vals[i + 2] - vals[i + 1];
@@ -78,23 +90,23 @@ fn h(i: usize, vals: &[f32]) -> f32 {
 }
 
 fn calc_diagonal(xs: &[f32], result: &mut [f32]) {
-    assert_eq!(NUM_ELEMENTS, xs.len());
-    let mut diagonal = [0f32; NUM_ELEMENTS - 2];
-    for i in 0..(NUM_ELEMENTS - 2) {
+    assert_eq!(16, xs.len());
+    let mut diagonal = [0f32; 14];
+    for i in 0..14 {
         diagonal[i] = 2f32 * (h(i, &xs) + h(i + 1, &xs));
     }
     result.copy_from_slice(&diagonal);
 }
 
-fn calc_r(xs: &[f32], ys: &[f32], r: &mut [f32]) -> Result<(), ()> {
+fn calc_r(xs: &[f32], ys: &[f32], r: &mut [f32]) -> Result<(), Error> {
     if r.len() != 14 {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     if xs.len() != 16 {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     if ys.len() != 16 {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     for i in 0..14 {
         let div1 = (ys[i + 2] - ys[i + 1]) / (h(i + 1, &xs));
@@ -104,12 +116,12 @@ fn calc_r(xs: &[f32], ys: &[f32], r: &mut [f32]) -> Result<(), ()> {
     Ok(())
 }
 
-fn calc_b(xs: &[f32], ys: &[f32], cs: &[f32], b: &mut [f32]) -> Result<(), ()> {
+fn calc_b(xs: &[f32], ys: &[f32], cs: &[f32], b: &mut [f32]) -> Result<(), Error> {
     if cs.len() != 16 {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     if b.len() != 15 {
-        return Err(());
+        return Err(Error::InvalidSliceLength);
     }
     for i in 0..15 {
         let div_1 = (ys[i + 1] - ys[i]) / (h(i, &xs));
@@ -119,15 +131,15 @@ fn calc_b(xs: &[f32], ys: &[f32], cs: &[f32], b: &mut [f32]) -> Result<(), ()> {
     Ok(())
 }
 
-fn calc_d(xs: &[f32], cs: &[f32], d: &mut [f32]) -> Result<(), ()> {
+fn calc_d(xs: &[f32], cs: &[f32], d: &mut [f32]) -> Result<(), Error> {
     if xs.len() != 16 {
-        return Err(());
+        return Err(Error::InvalidSliceLength)
     }
     if cs.len() != 16 {
-        return Err(());
+        return Err(Error::InvalidSliceLength)
     }
     if d.len() != 15 {
-        return Err(());
+        return Err(Error::InvalidSliceLength)
     }
     for i in 0..15 {
         d[i] = (cs[i + 1] - cs[i]) / (3f32 * h(i, &xs));
@@ -135,6 +147,7 @@ fn calc_d(xs: &[f32], cs: &[f32], d: &mut [f32]) -> Result<(), ()> {
     Ok(())
 }
 
+/// Plot given coefficients into the buffer according to the intervals given in xs
 pub fn plot_coeffs_into(
     buffer: &mut [f32],
     coefficients: &[(f32, f32, f32, f32)],
@@ -260,7 +273,7 @@ mod tests {
             (1.0, -0.26781887, -1.0982717, 0.36609057),
         ];
 
-        let mut buffer = [0f32; 100];
+        let mut buffer = [0f32; 1000];
         plot_coeffs_into(&mut buffer, &coeffs, &xs).unwrap();
 
         let root = BitMapBackend::new("0.png", (640, 480)).into_drawing_area();
@@ -270,7 +283,7 @@ mod tests {
             .margin(5)
             .x_label_area_size(30)
             .y_label_area_size(30)
-            .build_cartesian_2d(0f32..100f32, 0.0f32..15f32)
+            .build_cartesian_2d(0f32..1000f32, 0.0f32..15f32)
             .unwrap();
 
         chart.configure_mesh().draw().unwrap();
