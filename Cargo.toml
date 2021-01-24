@@ -1,8 +1,14 @@
 [package]
-name = "splinterpol"
+name = "cubic-splinterpol"
 version = "0.1.0"
 authors = ["Bachmann, Rafael <rafael.bachmann.93@gmail.com>"]
 edition = "2018"
+license-file = "LICENSE"
+description = "A library for efficient cubic spline interpolation on no_std."
+repository = "https://github.com/barafael/cubic-splinterpol"
+readme = "README.md"
+keywords = ["interpolation", "spline"]
+categories = ["science", "embedded"]
 
 [dev-dependencies]
 plotters = "0.3.0"
