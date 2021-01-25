@@ -1,4 +1,4 @@
-# splinterpol-baremetal
+# cubic-splinterpol
 Bare metal cubic spline interpolation with Rust [no\_std]
 
 Given 2d points on the plane, calculate piecewise polynomials which connect
