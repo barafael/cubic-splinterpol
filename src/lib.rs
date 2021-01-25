@@ -336,8 +336,8 @@ mod tests {
 
         chart
             .configure_series_labels()
-            .background_style(&WHITE.mix(0.8))
-            .border_style(&BLACK)
+            .background_style(&WHITE.mix(0.0))
+            .border_style(&WHITE)
             .draw()
             .unwrap()
     }
@@ -375,8 +375,8 @@ mod tests {
 
         chart
             .configure_series_labels()
-            .background_style(&WHITE.mix(0.8))
-            .border_style(&BLACK)
+            .background_style(&WHITE.mix(0.0))
+            .border_style(&WHITE)
             .draw()
             .unwrap()
     }
