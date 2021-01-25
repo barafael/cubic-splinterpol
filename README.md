@@ -8,3 +8,5 @@ There can be an arbitrary (const) number of points. Due to limitations in
 num-trait or my coding abilities, only f32 coordinates are supported.
 
 ![spline.png](https://github.com/barafael/splinterpol-baremetal/blob/main/spline.png)
+
+![elephant.png](https://github.com/barafael/splinterpol-baremetal/blob/main/elephant.png)

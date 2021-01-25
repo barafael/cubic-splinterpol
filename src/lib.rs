@@ -315,7 +315,7 @@ mod tests {
         let mut buffer = [0f32; 1000];
         plot_coeffs_into(&mut buffer, &coeffs, &xs).unwrap();
 
-        let root = BitMapBackend::new("0.png", (640, 480)).into_drawing_area();
+        let root = BitMapBackend::new("16-points.png", (640, 480)).into_drawing_area();
         root.fill(&WHITE).unwrap();
         let mut chart = ChartBuilder::on(&root)
             .caption("spline", ("sans-serif", 50).into_font())
@@ -338,6 +338,84 @@ mod tests {
             .configure_series_labels()
             .background_style(&WHITE.mix(0.8))
             .border_style(&BLACK)
+            .draw()
+            .unwrap()
+    }
+
+    #[test]
+    fn plot_splinterpol_8x8() {
+        use plotters::prelude::*;
+
+        let xs = [0.5f32, 1f32, 2f32, 3f32, 4.5f32, 5f32, 6f32, 7f32];
+        let ys = [0f32, 5f32, 1f32, 2f32, 1f32, 7f32, 10f32, 12f32];
+        let mut coeffs = [(0f32, 0f32, 0f32, 0f32); 7];
+        splinterpol::<8>(&xs, &ys, &mut coeffs).unwrap();
+
+        let mut buffer = [0f32; 1000];
+        plot_coeffs_into(&mut buffer, &coeffs, &xs).unwrap();
+
+        let root = BitMapBackend::new("8-points.png", (640, 480)).into_drawing_area();
+        root.fill(&WHITE).unwrap();
+        let mut chart = ChartBuilder::on(&root)
+            .caption("spline", ("sans-serif", 50).into_font())
+            .margin(5)
+            .x_label_area_size(30)
+            .y_label_area_size(30)
+            .build_cartesian_2d(0f32..1000f32, -2f32..15f32)
+            .unwrap();
+
+        chart.configure_mesh().draw().unwrap();
+
+        chart
+            .draw_series(LineSeries::new(
+                buffer.iter().enumerate().map(|(i, v)| (i as f32, *v)),
+                &RED,
+            ))
+            .unwrap();
+
+        chart
+            .configure_series_labels()
+            .background_style(&WHITE.mix(0.8))
+            .border_style(&BLACK)
+            .draw()
+            .unwrap()
+    }
+
+    #[test]
+    fn plot_splinterpol_elephant() {
+        use plotters::prelude::*;
+
+        let xs = [0.1, 0.8, 1.6, 3.1, 4.2, 4.6, 5.5, 7.0];
+        let ys = [0.4, 1.2, 6.0, 6.0, 5.0, 2.4, 0.5, 0.4];
+        let mut coeffs = [(0f32, 0f32, 0f32, 0f32); 7];
+        splinterpol::<8>(&xs, &ys, &mut coeffs).unwrap();
+
+        let mut buffer = [0f32; 1000];
+        plot_coeffs_into(&mut buffer, &coeffs, &xs).unwrap();
+
+        let root = BitMapBackend::new("elephant.png", (640, 480)).into_drawing_area();
+        root.fill(&WHITE).unwrap();
+        let mut chart = ChartBuilder::on(&root)
+            .caption("what is this?", ("sans-serif", 50).into_font())
+            .margin(5)
+            .x_label_area_size(30)
+            .y_label_area_size(30)
+            .build_cartesian_2d(0f32..1000f32, 0f32..15f32)
+            .unwrap();
+
+        chart.configure_mesh().draw().unwrap();
+
+        chart
+            .draw_series(LineSeries::new(
+                buffer.iter().enumerate().map(|(i, v)| (i as f32, *v)),
+                &BLACK,
+            ))
+            .unwrap();
+
+        chart
+            .configure_series_labels()
+            .background_style(&WHITE.mix(0.0))
+            .border_style(&WHITE)
             .draw()
             .unwrap()
     }
