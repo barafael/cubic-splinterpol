@@ -17,27 +17,27 @@ pub enum Error {
 /// Given xs and ys of same length n, calculate the coefficients of n-1 cubic
 /// polynomials.
 pub fn splinterpol<const N: usize>(
-    xs: &[f32],
-    ys: &[f32],
+    xs: &[f32; N],
+    ys: &[f32; N],
     coefficients: &mut [(f32, f32, f32, f32)],
 ) -> Result<(), Error> {
     // Array size const expression workaround
     let mut diagonal = [0f32; N];
     let mut diagonal = &mut diagonal[0..N - 2];
 
-    calc_diagonal::<N>(&xs, &mut diagonal).unwrap();
+    calc_diagonal::<N>(xs, &mut diagonal).unwrap();
 
     let mut r = [0f32; N];
     let mut r = &mut r[0..N - 2];
 
-    if let Err(e) = calc_r::<N>(&xs, &ys, &mut r) {
+    if let Err(e) = calc_r::<N>(xs, ys, &mut r) {
         return Err(e);
     }
 
     let mut sub_diagonal = [0f32; N];
     let mut sub_diagonal = &mut sub_diagonal[0..N - 3];
 
-    if let Err(e) = calc_subdiagonal(&xs, &mut sub_diagonal) {
+    if let Err(e) = calc_subdiagonal(xs, &mut sub_diagonal) {
         return Err(e);
     }
 
@@ -58,14 +58,14 @@ pub fn splinterpol<const N: usize>(
     let mut b = [0f32; N];
     let mut b = &mut b[0..N - 1];
 
-    if let Err(e) = calc_b::<N>(&xs, &ys, &c, &mut b) {
+    if let Err(e) = calc_b::<N>(xs, ys, &c, &mut b) {
         return Err(e);
     }
 
     let mut d = [0f32; N];
     let mut d = &mut d[0..N - 1];
 
-    if let Err(e) = calc_d::<N>(&xs, &c, &mut d) {
+    if let Err(e) = calc_d::<N>(xs, &c, &mut d) {
         return Err(e);
     }
 
