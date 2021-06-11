@@ -11,4 +11,4 @@ keywords = ["interpolation", "spline"]
 categories = ["science", "embedded"]
 
 [dev-dependencies]
-plotters = "0.3.0"
+plotters = "0.3.1"

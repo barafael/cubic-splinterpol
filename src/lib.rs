@@ -90,10 +90,10 @@ fn calc_subdiagonal(vals: &[f32], sub: &mut [f32]) -> Result<(), Error> {
 }
 
 fn cubic_spline(a: f32, b: f32, c: f32, d: f32, vec: &mut [f32], step_size: f32) {
-    for (i, v) in vec.iter_mut().enumerate() {
-        let x = i as f32 * step_size;
-        let value = a + b * x + c * (x * x) + d * (x * x * x);
-        *v = value;
+    for (index, elem) in vec.iter_mut().enumerate() {
+        let base = index as f32 * step_size;
+        let value = a + b * base + c * (base * base) + d * (base * base * base);
+        *elem = value;
     }
 }
 
@@ -105,8 +105,8 @@ fn calc_diagonal<const N: usize>(xs: &[f32], result: &mut [f32]) -> Result<(), E
     if xs.len() != N {
         return Err(Error::InvalidSliceLength);
     }
-    for i in 0..N - 2 {
-        result[i] = 2f32 * (h(i, &xs) + h(i + 1, &xs));
+    for (i, elem) in result.iter_mut().enumerate().take(N - 2) {
+        *elem = 2f32 * (h(i, &xs) + h(i + 1, &xs));
     }
     Ok(())
 }
@@ -165,7 +165,7 @@ pub fn plot_coeffs_into(
     buffer: &mut [f32],
     coefficients: &[(f32, f32, f32, f32)],
     xs: &[f32],
-) -> Result<(), ()> {
+) -> Result<(), Error> {
     let x_range = xs.last().unwrap() - xs.first().unwrap();
     let step_size = x_range as f64 / buffer.len() as f64;
     let mut current_index = 0;
